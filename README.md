@@ -16,6 +16,12 @@ The NestJS Chat Application is a real-time chat service built using NestJS and S
 - Prisma ORM for database interactions
 - SQLite database for development
 
+## Design Choices
+
+To minimize the number of dependencies required to set up the application for both the frontend and backend, Node.js was chosen as the backend. This allows a user to only need Node.js and npm to get up and running without the hassle of having to install Node.js for the frontend and another programming language like Python or Java for the backend. SQLite was chosen as the database of choice because it is a file-based database and does not require the user to download a separate database system like MongoDB or PostgreSQL. However, in production, it is expected that the SQLite database would be swapped out for a production-grade database.
+
+To keep track of online users that have connected to the server, an in-memory map was used. This is sufficient for a small and simple application like this, but in production, a preferred alternative would be Redis as it provides persistence and distributed storage across multiple servers, unlike an in-memory database which would lose all its data when the server is restarted. Also Redis was avoided to further reduce the number of dependencies that would be needed to be setup to run this application.
+
 ## Requirements
 
 - Node.js v16 or above
@@ -28,8 +34,8 @@ The NestJS Chat Application is a real-time chat service built using NestJS and S
 1. Clone the repository
 
    ```bash
-   git clone https://github.com/your-repo/nestjs-chat-app.git
-   cd nestjs-chat-app
+   git clone https://github.com/roronoazor/p2p-chat-backend.git
+   cd p2p-chat-backend
    ```
 
 2. Install dependencies
@@ -68,6 +74,7 @@ The NestJS Chat Application is a real-time chat service built using NestJS and S
    ```
 
 4. Start the application
+
    ```bash
    make start
    ```
@@ -80,23 +87,17 @@ The NestJS Chat Application is a real-time chat service built using NestJS and S
    npx prisma migrate dev
    ```
 
-2. Deploy the database
-
-   ```bash
-   npx prisma db push
-   ```
-
-3. Command to start the application in development mode
+2. Start the application in development mode
 
    ```bash
    npm run start:dev
    ```
 
-4. Start the application
+3. Start the application
 
-```bash
- npm run start
-```
+   ```bash
+   npm run start
+   ```
 
 ## API Endpoints
 
@@ -117,15 +118,3 @@ The NestJS Chat Application is a real-time chat service built using NestJS and S
 - **sendMessage**: Send a message to another user
 - **messageReceived**: Receive a message from another user
 - **searchUsers**: Search for users by email or phone number
-
-## Contributing
-
-Contributions are welcome! Please submit a pull request or open an issue to discuss improvements or bug fixes.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
-This README provides a comprehensive overview of the NestJS Chat Application, including its features, installation instructions, and details on how to run the application both with and without a Makefile. The Makefile commands are also documented for ease of use.
