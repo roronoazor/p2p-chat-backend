@@ -12,9 +12,9 @@ import { Server, Socket } from 'socket.io';
 import { UsersService } from '../users/users.service';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
-import { ParseUUIDPipe, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { User } from '@prisma/client';
-import { of } from 'rxjs';
+
 
 @WebSocketGateway({
   cors: {
@@ -72,6 +72,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       
       await this.usersService.deleteUserOfflineMessages(payload.id);
 
+      // send all the blocked users to the frontend
+      let blockedUsers = await this.usersService.getBlockedUsers(payload.id);
+      client.emit('blockedUsers', blockedUsers);
+
       // broadcast to all connections that a new user has joined
       this.server.emit('userJoined', { ...user });
     } catch (error) {
@@ -99,7 +103,6 @@ async sendMessage(@ConnectedSocket() client: Socket, @MessageBody() message: any
   let recipientSocketId: string | undefined;
   let senderSocketId: string | undefined;
 
-  
   for (const [socketId, userId] of this.activeUsers.entries()) {
     if (userId === message.to) {
       recipientSocketId = socketId;
@@ -108,13 +111,15 @@ async sendMessage(@ConnectedSocket() client: Socket, @MessageBody() message: any
       senderSocketId = socketId;
     }
   }
+ 
+    // we can eliminate this query, if we choose to do the blocking control on the frontend
+    const isBlocked = await this.usersService.isBlocked(message.to, message.from);
 
-  if (recipientSocketId) {
-    this.server.to(recipientSocketId).emit('messageReceived', message);
-  } else {
-    // User is offline, save to temp db
-    await this.usersService.saveUserOfflineMessages(message);
-  }
+    if (recipientSocketId && !isBlocked) {
+      this.server.to(recipientSocketId).emit('messageReceived', message);
+    } else {
+      await this.usersService.saveUserOfflineMessages(message);
+    }
 
   if (senderSocketId) {
     this.server.to(senderSocketId).emit('messageReceived', message);
@@ -159,6 +164,42 @@ handleUserOffline(@ConnectedSocket() client: Socket,@MessageBody() message: { us
     const activeUsers = this.markActiveUsers(users);
     client.emit('searchResults', activeUsers);
   }
+
+  @SubscribeMessage('blockUser')
+  async blockUser(@ConnectedSocket() client: Socket, @MessageBody() message: { userIdToBlock: number }) {
+    const userId = client.data.userId;
+    await this.usersService.blockUser({
+      userId: userId, 
+      blockedUserId: message.userIdToBlock
+    });
+    client.emit('userBlocked', { userId, userIdToBlock: message.userIdToBlock });
+
+    // Check if the blocked user is currently online
+    for (let [socketId, activeUserId] of this.activeUsers) {
+      if (activeUserId === message.userIdToBlock) {
+        // Emit a message to the blocked user if they are online
+        this.server.to(socketId).emit('userBlocked', { userId, userIdToBlock: message.userIdToBlock });
+        break;
+      }
+    }
+  }
+
+  @SubscribeMessage('unblockUser')
+  async unblockUser(@ConnectedSocket() client: Socket, @MessageBody() { userIdToUnblock }: { userIdToUnblock: number }) {
+    const userId = client.data.userId;
+    await this.usersService.unblockUser(userId, userIdToUnblock);
+    client.emit('userUnblocked', { userId, userIdToUnblock });
+
+     // Check if the blocked user is currently online
+     for (let [socketId, activeUserId] of this.activeUsers) {
+      if (activeUserId === userIdToUnblock) {
+        // Emit a message to the blocked user if they are online
+        this.server.to(socketId).emit('userBlocked', { userId, userIdToUnblock });
+        break;
+      }
+    }
+  }
+
 
 
   markActiveUsers(users: User[]): User[] {

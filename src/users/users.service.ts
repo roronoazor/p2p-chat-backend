@@ -60,4 +60,42 @@ export class UsersService {
         }},
       });
     }
+
+    async blockUser(data: Prisma.BlockedUserUncheckedCreateInput): Promise<void> {
+      await this.prisma.blockedUser.create({
+        data
+      });
+    }
+    
+  
+    async unblockUser(userId: number, userIdToUnblock: number): Promise<void> {
+      await this.prisma.blockedUser.deleteMany({
+        where: {
+          userId,
+          blockedUserId: userIdToUnblock,
+        },
+      });
+    }
+  
+    async isBlocked(userId: number, blockedById: number): Promise<boolean> {
+      const count = await this.prisma.blockedUser.count({
+        where: {
+          userId: blockedById,
+          blockedUserId: userId,
+        },
+      });
+      return count > 0;
+    }
+  
+    async getBlockedUsers(userId: number): Promise<number[]> {
+      const blockedUsers = await this.prisma.blockedUser.findMany({
+        where: {
+          userId,
+        },
+        select: {
+          blockedUserId: true,
+        },
+      });
+      return blockedUsers.map(block => block.blockedUserId);
+    }
 }
